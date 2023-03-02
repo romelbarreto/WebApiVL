@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using WebApiVL.Models;
 
+
 namespace WebApiVL.Controllers
 {
     [Route("api/[controller]")]
@@ -90,24 +91,24 @@ namespace WebApiVL.Controllers
 
             if (principal != null)
             {
-                var email = principal.Claims.FirstOrDefault(f => f.Type == ClaimTypes.Email);
+                var correo = principal.Claims.FirstOrDefault(f => f.Type == ClaimTypes.Email);
 
-                var user = await _userManager.FindByEmailAsync(email?.Value);
+                var usuario = await _userManager.FindByEmailAsync(correo?.Value);
 
-                if (user is null || user.RefreshToken != refreshTokenRequest.RefreshToken)
+                if (usuario is null || usuario.RefreshToken != refreshTokenRequest.RefreshToken)
                 {
                     response.ErrorMessage = "Invalid Request";
                     return BadRequest(response);
                 }
 
-                string newAccessToken = GenerateAccessToken(user);
+                string newAccessToken = GenerateAccessToken(usuario);
                 string refreshToken = GenerateRefreshToken();
-
-                user.RefreshToken = refreshToken;
-                await _userManager.UpdateAsync(user);
+                
+                usuario.RefreshToken = refreshToken;
+                await _userManager.UpdateAsync(usuario);
 
                 response.IsSuccess = true;
-                response.Content = new AuthenticationResponse
+                response.Content = new AutenticarRespuesta
                 {
                     RefreshToken = refreshToken,
                     AccessToken = newAccessToken
@@ -120,6 +121,42 @@ namespace WebApiVL.Controllers
             }
 
         }
+        
+        [AllowAnonymous]
+        [HttpPost("AuthenticateUser")]
+        public async Task<IActionResult> AuthenticateUser(AutenticarUsuario authenticateUser)
+        {
+            var usuario = await _userManager.FindByNameAsync(authenticateUser.NombreUsuario);
+            if (usuario== null) return Unauthorized();
+            
+            bool isValidUser = await _userManager.CheckPasswordAsync(usuario, authenticateUser.Clave);
+            
+            if (isValidUser)
+            {
+                string accessToken = GenerateAccessToken(usuario);
+                var refreshToken = GenerateRefreshToken();
+                usuario.RefreshToken = refreshToken;
+                await _userManager.UpdateAsync(usuario);
+
+                var response = new MainResponse
+                {
+                    Content = new AutenticarRespuesta
+                    {
+                        RefreshToken = refreshToken,
+                        AccessToken = accessToken
+                    },
+                    IsSuccess = true,
+                    ErrorMessage = ""
+                };
+                return Ok(response);
+            }
+            else
+            {
+                return Unauthorized();
+            }
+
+        }
+        
         private string GenerateAccessToken(Usuario user)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -128,7 +165,7 @@ namespace WebApiVL.Controllers
 
             var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id),
+                    new Claim(ClaimTypes.NameIdentifier, user.NombreUsuario),
                     new Claim(ClaimTypes.Name, $"{user.Nombre}"),
                     new Claim(ClaimTypes.Email, user.Correo),
                     
@@ -183,5 +220,44 @@ namespace WebApiVL.Controllers
                 return Convert.ToBase64String(randomNumber);
             }
         }
+
+        [AllowAnonymous]
+        [HttpPost("RegisterUser")]
+        public async Task<IActionResult> RegisterUser(RegistrarUsuarioDTO registerUserDTO)
+        {
+
+            var userToBeCreated = new Usuario
+            {
+                Nombre = registerUserDTO.Nombre,
+                Correo = registerUserDTO.Correo,
+                Acceso = registerUserDTO.Acceso,
+                Clave = registerUserDTO.Clave,
+                Activo = registerUserDTO.Activo,
+                NombreUsuario = registerUserDTO.NombreUsuario
+            };
+
+
+            /*if (!string.IsNullOrWhiteSpace(registerUserDTO.UserAvatar))
+            {
+                byte[] imgBytes = Convert.FromBase64String(registerUserDTO.UserAvatar);
+                string fileName = $"{Guid.NewGuid()}_{userToBeCreated.FirstName.Trim()}_{userToBeCreated.LastName.Trim()}.jpeg";
+                string avatar = await UploadFile(imgBytes, fileName);
+                userToBeCreated.UserAvatar = avatar;
+            }*/
+
+            var response = await _userManager.CreateAsync(userToBeCreated, registerUserDTO.Clave);
+            if (response.Succeeded)
+            {
+                return Ok(new MainResponse
+                {
+                    IsSuccess = true,
+                });
+            }
+            else
+            {
+                return ErrorResponse.ReturnErrorResponse(response.Errors?.ToString() ?? "");
+            }
+        }
+
     }
 }

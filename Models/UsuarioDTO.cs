@@ -9,6 +9,7 @@
         public string Clave { get; set; } = null!;
         public bool Activo { get; set; }
         public string NombreUsuario { get; set; } = null!;
+       
     }
 }
 

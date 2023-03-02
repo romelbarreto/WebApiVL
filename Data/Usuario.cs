@@ -1,10 +1,11 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Identity;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace WebApiVL.Models;
 
-public partial class Usuario
+public partial class Usuario : IdentityUser
 {
     
     public int Id { get; set; }
@@ -20,4 +21,5 @@ public partial class Usuario
     public bool Activo { get; set; }
  
     public string NombreUsuario { get; set; } = null!;
+    public string? RefreshToken { get; set; }
 }
